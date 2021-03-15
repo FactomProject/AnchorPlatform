@@ -272,10 +272,11 @@ func Sync() {
 				// Figure out how long we have been syncing
 				timeSpent := time.Now().Sub(begin)
 				// Figure out how much of the missing blocks we have processed
-				percentDone := float64(dbheight-startHeight) / float64(factomdHeight-startHeight)
+				percentDone := float64(dbheight-startHeight) / float64(factomdHeight)
 				// Figure out an estimate of how much longer this is going to take.
-				timePerBlock := float64(timeSpent) / float64(dbheight-startHeight)
+				timePerBlock := float64(timeSpent.Seconds()) / float64(dbheight-startHeight)
 				timeLeft := int64(float64(factomdHeight-dbheight) * timePerBlock)
+				// fmt.Printf("Time per block %6.4f and blocks left %d of %d\n", timePerBlock, factomdHeight-dbheight, factomdHeight)
 				// Print our feedback
 				fmt.Printf("%s Height: %10s  Objects: %13s  Done: %02.0f%%  Left: %s \n",
 					database.FormatTimeLapse(timeSpent),
