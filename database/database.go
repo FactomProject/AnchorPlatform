@@ -25,6 +25,14 @@ type DB struct {
 	badgerDB *badger.DB
 }
 
+type BatchEntry struct {
+	Key   []byte
+	Value []byte
+	Meta  byte
+}
+
+type Batch []*BatchEntry
+
 var db *DB
 
 func GetDB() *DB {
@@ -36,6 +44,13 @@ func GetDB() *DB {
 	return db
 }
 
+// Close
+// Close the underlying database
+func (d *DB) Close() error {
+	return d.badgerDB.Close()
+}
+
+// InitDB
 // Initialize the database.  This will certainly open an existing database, but will
 // also initialize an new, empty database.
 func (d *DB) InitDB() {
@@ -104,6 +119,41 @@ func (d *DB) Put(bucket int, key []byte, value []byte) error {
 		return err
 	})
 	return err
+}
+
+// BeginBatch
+// Return a Batch slice. Collect key value pairs to a batch list that will all
+// be written to the database at once when the batch is ended.
+func (d *DB) BeginBatch() *Batch {
+	return new(Batch)
+}
+
+// EndBatch
+// Write all the transactions in a given batch of pending transactions.  The
+// batch is emptied, so it can be reused.
+func (d *DB) EndBatch(batch *Batch) {
+	txn := db.badgerDB.NewTransaction(true)
+	for _, e := range *batch {
+		if err := txn.Set(e.Key, e.Value); err != nil {
+			panic("Could not write entry")
+		}
+	}
+	if err := txn.Commit(); err != nil {
+		panic("Could not write transaction")
+	}
+	*batch = (*batch)[:0]
+}
+
+// PutBatch
+// Put a key value pair into a batch.  These commits are effectively pending and will
+// only be written to the database if the batch is passed to EndBatch
+func (d *DB) PutBatch(batch *Batch, bucket int, key []byte, value []byte) error {
+	CKey := GetKey(bucket, key)
+	entry := new(BatchEntry)
+	entry.Key = CKey
+	entry.Value = value
+	*batch = append(*batch, entry)
+	return nil
 }
 
 // PutInt

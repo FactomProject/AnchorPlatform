@@ -1,5 +1,7 @@
 package main
 
-func main() {
+import "github.com/PaulSnow/AnchorMaker/factomSync"
 
+func main() {
+	factomSync.Sync()
 }

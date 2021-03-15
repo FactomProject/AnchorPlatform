@@ -17,7 +17,7 @@ var bucket map[string][]byte
 const (
 	DBlockBucket      = iota + 1 // Index information about directory blocks
 	ObjectBucket                 // Index information about general objects in Factom
-	MerkleStateBucket            // Index information about merklestates
+	MerkleStateBucket            // Index information about Merkle States
 	BitcoinBucket                //
 	EthereumBucket
 	TestBucket

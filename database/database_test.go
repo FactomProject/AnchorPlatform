@@ -23,31 +23,46 @@ func TestDatabase(t *testing.T) {
 
 	defer db.Close()
 
-	err = db.Update(func(txn *badger.Txn) error {
-		err := txn.Set([]byte("answer"), []byte("42"))
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var val []byte
-	err = db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte("answer"))
+	for i := 0; i < 10000; i++ {
+		err = db.Update(func(txn *badger.Txn) error {
+			err := txn.Set([]byte(fmt.Sprintf("answer %d", i)), []byte(fmt.Sprintf("%x this much data ", i)))
+			return err
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = item.Value(func(v []byte) error {
-			val = append(val, v...)
+		if i%1000 == 0 {
+			println(i)
+		}
+	}
+	fmt.Println("Reads")
+	for i := 0; i < 10000; i++ {
+		var val []byte
+		err = db.View(func(txn *badger.Txn) error {
+			item, err := txn.Get([]byte(fmt.Sprintf("answer %d", i)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = item.Value(func(v []byte) error {
+				val = append(val, v...)
+				return nil
+			})
 			return nil
 		})
-		return nil
-	})
-	fmt.Printf("Answer: %s\n", val)
+
+		if string(val) != fmt.Sprintf("%x this much data ", i) {
+			t.Error("Did not read data properly")
+		}
+	}
 }
 
 func TestDatabase2(t *testing.T) {
 	db := GetDB()
-	db.Put(TestBucket, []byte("answer"), []byte("42"))
+	if err := db.Put(TestBucket, []byte("answer"), []byte("42")); err != nil {
+		t.Error("Could not put value into test bucket")
+	}
 	answer := db.Get(TestBucket, []byte("answer"))
-	fmt.Println("The Answer is ", string(answer))
+	if string(answer) != "42" {
+		t.Error("Failed to read the database")
+	}
 }

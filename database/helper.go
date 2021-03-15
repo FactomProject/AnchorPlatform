@@ -11,8 +11,10 @@
 package database
 
 import (
+	"fmt"
 	"os"
 	"os/user"
+	"time"
 )
 
 // GetHomeDir
@@ -110,4 +112,30 @@ func Int64Bytes(i int64) []byte {
 func BytesInt64(data []byte) (int64, []byte) {
 	return int64(data[0])<<56 + int64(data[1])<<48 + int64(data[2])<<40 + int64(data[3])<<32 +
 		int64(data[4])<<24 + int64(data[5])<<16 + int64(data[6])<<8 + int64(data[7]), data[8:]
+}
+
+// DurationFormat
+// Simple formatting for duration time.  Prints all results within a fixed field of text.
+func FormatTimeLapse(d time.Duration) string {
+	return FormatTimeLapseSeconds(int64(d.Seconds()))
+}
+
+// DurationFormat
+// Simple formatting if what I have is seconds. Prints all results within a fixed field of text.
+func FormatTimeLapseSeconds(total int64) string {
+	days := total / 24 / 60 / 60
+	total -= days * 24 * 60 * 60
+	hours := total / 60 / 60
+	total -= hours * 60 * 60
+	minutes := total / 60
+	seconds := total - minutes*60
+	if days > 0 {
+		return fmt.Sprintf("%3d/%02d:%02d:%02d d/h:m:s", days, hours, minutes, seconds)
+	} else if hours > 0 {
+		return fmt.Sprintf("    %02d:%02d:%02d h:m:s  ", hours, minutes, seconds)
+	} else if minutes > 0 {
+		return fmt.Sprintf("       %02d:%02d m:s    ", minutes, seconds)
+	} else {
+		return fmt.Sprintf("          %2d s      ", seconds)
+	}
 }
