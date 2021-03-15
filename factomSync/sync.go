@@ -9,8 +9,8 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/AccumulateNetwork/SMT/smt"
+	"github.com/FactomProject/AnchorPlatform/database"
 	"github.com/FactomProject/factom"
-	"github.com/PaulSnow/AnchorMaker/database"
 )
 
 var MS smt.MerkleState
@@ -69,6 +69,17 @@ func AddHash(db *database.DB, batch *database.Batch, hash string, dbheight int64
 		MS.AddToChain(hBytesArray)
 		// Batch this key value pair
 		_ = db.PutBatch(batch, database.ObjectBucket, database.Int64Bytes(dbheight), hashBytes)
+	}
+
+	// We look at the count to pick the powers of two for Merkle States that we want to be
+	// able to grab quickly.  This is because receipt generation is vastly faster if we have
+	// easy access to these states.
+	count := MS.GetCount()
+	if count&database.MarkMask == 0 {
+		// Get the Merkle State at this point in the Merkle Tree
+		merkleState := MS.Marshal()
+		// Index this merkle state by its count as a Mark
+		_ = db.PutBatch(batch, database.MerkleStateBucket+database.Mark, database.Int64Bytes(count), merkleState)
 	}
 
 	return nil
@@ -148,28 +159,19 @@ func AddEntryBlock(db *database.DB, batch *database.Batch, dbheight int64, keyMR
 				return fmt.Errorf("database failure on writing entry %s to the database", v.EntryHash)
 			}
 		}
+		// We add a key/value chainID/entryhash for the first entry in every chain.
+		// The first entry block of every chain has a BlockSequenceNumber of 0, so we check for that
+		if entryBlock.Header.BlockSequenceNumber == 0 {
+			// We need the binary of the chainID and the entryHash, which we have in the entry block.
+			// Note that these MUST be valid hex or all sorts of things fail, so no checking here.
+			entryhash, _ := hex.DecodeString(entryBlock.EntryList[0].EntryHash)
+			chainID, _ := hex.DecodeString(entryBlock.Header.ChainID)
+			// No realistic failure is possible with putting the key value pair into the batch list
+			_ = db.PutBatch(batch, database.ChainBucket, chainID, entryhash)
+		}
 	}
 
 	return nil
-}
-
-// PrintState
-// Helps to see our state from time to time during a long sync.
-func PrintState(begin time.Time, dbheight, startHeight, factomdHeight int64) {
-	// Figure out how long we have been syncing
-	timeSpent := time.Now().Sub(begin)
-	// Figure out how much of the missing blocks we have processed
-	percentDone := float64(dbheight-startHeight) / float64(factomdHeight)
-	// Figure out an estimate of how much longer this is going to take.
-	timePerBlock := float64(timeSpent) / float64(dbheight-startHeight)
-	timeLeft := int64(float64(factomdHeight-dbheight) * timePerBlock)
-	// Print our feedback
-	fmt.Printf("%s Height: %10s  Objects: %13s  Done: %02.0f%%  Left: %s \n",
-		database.FormatTimeLapse(timeSpent),
-		humanize.Comma(dbheight),
-		humanize.Comma(MS.GetCount()),
-		percentDone*100,
-		database.FormatTimeLapseSeconds(int64(timeLeft)))
 }
 
 // MakeMerkleBlock
@@ -267,7 +269,20 @@ func Sync() {
 			// we are syncing more than 100 blocks.  Otherwise, we just do our job and let the UI provide
 			// feedback.  Always print the first time.
 			if dbheight != 0 && dbheight%1000 == 0 && factomdHeight-dbheight >= 10 {
-				PrintState(begin, dbheight, startHeight, factomdHeight)
+				// Figure out how long we have been syncing
+				timeSpent := time.Now().Sub(begin)
+				// Figure out how much of the missing blocks we have processed
+				percentDone := float64(dbheight-startHeight) / float64(factomdHeight-startHeight)
+				// Figure out an estimate of how much longer this is going to take.
+				timePerBlock := float64(timeSpent) / float64(dbheight-startHeight)
+				timeLeft := int64(float64(factomdHeight-dbheight) * timePerBlock)
+				// Print our feedback
+				fmt.Printf("%s Height: %10s  Objects: %13s  Done: %02.0f%%  Left: %s \n",
+					database.FormatTimeLapse(timeSpent),
+					humanize.Comma(dbheight),
+					humanize.Comma(MS.GetCount()),
+					percentDone*100,
+					database.FormatTimeLapseSeconds(int64(timeLeft)))
 			}
 
 			// Every 10k key pairs, write all the key values to the database.  Note that batch can be reused.

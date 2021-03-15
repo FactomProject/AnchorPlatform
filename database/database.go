@@ -59,7 +59,10 @@ func (d *DB) InitDB() {
 		d.DBHome = fmt.Sprintf("%s%s%03d", GetHomeDir(), "/.AnchorMaker/badger", 0)
 	}
 	// Make sure all directories exist
-	os.MkdirAll(d.DBHome, 0777)
+	err := os.MkdirAll(d.DBHome, 0777)
+	if err != nil {
+		panic("failed to create home directory")
+	}
 	// Open Badger
 	// Try at least three databases before we give up
 	db, err := badger.Open(badger.DefaultOptions(d.DBHome))
@@ -71,7 +74,7 @@ func (d *DB) InitDB() {
 
 // GetKey
 // Given a bucket and a key, return the combined key
-func GetKey(bucket int, key []byte) (CKey []byte) {
+func GetKey(bucket int64, key []byte) (CKey []byte) {
 	CKey = append(CKey, Uint32Bytes(uint32(bucket))...)
 	CKey = append(CKey, key...)
 	return CKey
@@ -80,7 +83,7 @@ func GetKey(bucket int, key []byte) (CKey []byte) {
 // Get
 // Look in the given bucket, and return the key found.  Returns nil if no value
 // is found for the given key
-func (d *DB) Get(bucket int, key []byte) (value []byte) {
+func (d *DB) Get(bucket int64, key []byte) (value []byte) {
 	CKey := GetKey(bucket, key) // combine the bucket and the key
 	// Go look up the CKey, and return any error we might find.
 	err := d.badgerDB.View(func(txn *badger.Txn) error {
@@ -102,7 +105,7 @@ func (d *DB) Get(bucket int, key []byte) (value []byte) {
 	return value
 }
 
-func (d *DB) GetInt32(bucket int, ikey uint32) (value []byte) {
+func (d *DB) GetInt32(bucket int64, ikey uint32) (value []byte) {
 	key := Uint32Bytes(ikey)
 	return d.Get(bucket, key)
 }
@@ -110,12 +113,12 @@ func (d *DB) GetInt32(bucket int, ikey uint32) (value []byte) {
 // Put
 // Put a key/value in the database.  We return an error if there was a problem
 // writing the key/value pair to the database.
-func (d *DB) Put(bucket int, key []byte, value []byte) error {
+func (d *DB) Put(bucket int64, key []byte, value []byte) error {
 	CKey := GetKey(bucket, key)
 
 	// Update the key/value in the database
 	err := d.badgerDB.Update(func(txn *badger.Txn) error {
-		err := txn.Set([]byte(CKey), value)
+		err := txn.Set(CKey, value)
 		return err
 	})
 	return err
@@ -147,7 +150,7 @@ func (d *DB) EndBatch(batch *Batch) {
 // PutBatch
 // Put a key value pair into a batch.  These commits are effectively pending and will
 // only be written to the database if the batch is passed to EndBatch
-func (d *DB) PutBatch(batch *Batch, bucket int, key []byte, value []byte) error {
+func (d *DB) PutBatch(batch *Batch, bucket int64, key []byte, value []byte) error {
 	CKey := GetKey(bucket, key)
 	entry := new(BatchEntry)
 	entry.Key = CKey
@@ -159,7 +162,7 @@ func (d *DB) PutBatch(batch *Batch, bucket int, key []byte, value []byte) error 
 // PutInt
 // Put a key/value in the database, where the key is an index.  We return an error if there was a problem
 // writing the key/value pair to the database.
-func (d *DB) PutInt32(bucket int, ikey int, value []byte) error {
+func (d *DB) PutInt32(bucket int64, ikey int64, value []byte) error {
 	key := Uint32Bytes(uint32(ikey))
 	return d.Put(bucket, key, value)
 }

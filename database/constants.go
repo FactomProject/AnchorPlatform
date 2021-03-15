@@ -13,18 +13,28 @@ package database
 // Map of buckets to the bucket byte
 var bucket map[string][]byte
 
+// General constants
+const (
+	Mark     = int64(0x400) // Merkle State Mark at every 1024 (hex 400) elements
+	MarkMask = Mark - 1     // Mask to Mark, 1023
+)
+
 // buckets
 const (
-	DBlockBucket      = iota + 1 // Index information about directory blocks
-	ObjectBucket                 // Index information about general objects in Factom
-	MerkleStateBucket            // Index information about Merkle States
-	BitcoinBucket                //
+	DBlockBucket      = int64(iota + 1) // Index information about directory blocks
+	ChainBucket                         // Index of ChainIDs to the first entry in that chain
+	ObjectBucket                        // Index information about general objects in Factom
+	MerkleStateBucket                   // Index information about Merkle States
+	BitcoinBucket                       //
 	EthereumBucket
 	TestBucket
 )
 
 // labels
+// Labels allow buckets to index different sorts of values.  For example, indexing dbheight vs element counts
+// For example MerkleStateBucket can track indexes by DBHeight, and MerkleStateBucket+MerkleStateMarks can track
+// indexes by element count.
 const (
-	MetaLabel = (iota + 1) << 16
-	RawLabel
+	MetaLabel        = int64(iota+1) << 16 // buckets in the low 16 bits, Labels in higher bits
+	MerkleStateMarks                       // Merkle State at every 1024 element mark
 )
