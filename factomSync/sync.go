@@ -61,25 +61,39 @@ func SetDatabaseHeight(batch *database.Batch, db *database.DB, dbheight int64) {
 // before we add them to the Anchor Platform database.
 func AddHash(db *database.DB, batch *database.Batch, hash string, dbheight int64) (err error) {
 
-	if hashBytes, err := hex.DecodeString(hash); err != nil { // Convert the hash string to a binary hash
+	// Get the binary for the hash, because that is what will be needed here.
+	var hashBytes [32]byte
+	if hashSlice, err := hex.DecodeString(hash); err != nil { // Convert the hash string to a binary hash
 		return err // return any errors
 	} else {
-		var hBytesArray [32]byte
-		copy(hBytesArray[:], hashBytes)
-		MS.AddToChain(hBytesArray)
-		// Batch this key value pair
-		_ = db.PutBatch(batch, database.ObjectBucket, database.Int64Bytes(dbheight), hashBytes)
+		copy(hashBytes[:], hashSlice)
 	}
 
-	// We look at the count to pick the powers of two for Merkle States that we want to be
-	// able to grab quickly.  This is because receipt generation is vastly faster if we have
-	// easy access to these states.
+	// Look for the power of 2 boundary.  We need the hash that spills into the database.Mark to
+	// create fast proofs.  That's going to be the HashFunction(MS.pending[database.MarkPower] + hash)
 	count := MS.GetCount()
-	if count&database.MarkMask == 0 {
-		// Get the Merkle State at this point in the Merkle Tree
-		merkleState := MS.Marshal()
-		// Index this merkle state by its count as a Mark
-		_ = db.PutBatch(batch, database.MerkleStateBucket+database.Mark, database.Int64Bytes(count), merkleState)
+	// Are we at a mark boundary?
+	if count > 0 && (count+1)&database.MarkMask == 0 {
+		// Start with the value of the hash passed in.
+		combinedHash := hashBytes
+		// For every entry in Pending, combine with the hash all the way to the Mark Power
+		for i := 0; i < database.MarkPower; i++ {
+			// Note we don't have to test for nil, because we did that when we masked the count
+			combinedHash = MS.HashFunction(append(MS.Pending[i][:], combinedHash[:]...))
+		}
+		// Save this combined hash for the mark at this count
+		_ = db.PutBatch(batch, database.MerkleStateBucket+database.Mark, database.Int64Bytes(count), combinedHash[:])
+	}
+
+	// Add the hash to our Merkle Tree, no matter what.  However, if this is a duplicate we won't index it.
+	MS.AddToMerkleTree(hashBytes)
+
+	// Batch this key value pair
+	// First check if we have already indexed this object.  If so, we keep the oldest (what is in the database)
+	objectDbheight := db.Get(database.ObjectBucket, hashBytes[:])
+	if objectDbheight == nil {
+		// If we don't have a reference to this object, then add it to the database
+		_ = db.PutBatch(batch, database.ObjectBucket, hashBytes[:], database.Int64Bytes(dbheight))
 	}
 
 	return nil
@@ -102,9 +116,12 @@ func AddDirectoryBlock(db *database.DB, batch *database.Batch, dbheight int64) (
 		// We put in all the directory block entries.  This includes the hash for the admin block, entry credit block,
 		// and factoid block.
 		for i, v := range dBlock.DBEntries {
+			// Add all the hashes for the directory block entries, which covers the admin, entry credit, factoid,
+			// and entry blocks.
 			if err := AddHash(db, batch, v.KeyMR, dbheight); err != nil {
 				return fmt.Errorf("database failure on DBlock entry %s at height %d", v.KeyMR, dbheight)
 			}
+			// Entry blocks start at index 3, so process them separately. Add all the entries in the entry blocks.
 			if i >= 3 {
 				if err := AddEntryBlock(db, batch, dbheight, v.KeyMR); err != nil {
 					return fmt.Errorf("failure with entry block %s : %v", v.KeyMR, err)
@@ -112,10 +129,14 @@ func AddDirectoryBlock(db *database.DB, batch *database.Batch, dbheight int64) (
 			}
 		}
 
-		// Now add all the entries of the entry credit block to the database
+		// Now add all the transactions in the Factoid block to the database
 		if err = AddFactoidBlock(db, batch, dbheight, dBlock); err != nil {
 			return fmt.Errorf("could not add the Factoid Block : %v ", err)
 		}
+
+		// Note that we don't add the entries in the admin block or the entry credit block.  That could be done
+		// in the future, if we so desire, but isn't done here.  One can get receipts to the blocks, but not their
+		// individual entries.
 
 		return nil
 	}
@@ -211,6 +232,8 @@ func Sync() {
 
 	// Get the database height from the database
 	databaseHeight := GetDatabaseHeight(db)
+	// Get the initial factomdHeight
+	factomdHeight := getFactomdHeight()
 	// Set our merkle state to what we have in the database
 	SetMerkleState(db, databaseHeight)
 
@@ -225,22 +248,35 @@ func Sync() {
 
 	running := time.Now()
 
-	for {
-		// Make sure we do not busy wait
-		time.Sleep(10 * time.Second)
-		// If we have been signaled to stop, then return out of the syncing process
-		// This will close the database
-		if Stop {
-			return
-		}
-		// Get the directory block height in factomd and the database and see if we have something to do
-		databaseHeight = GetDatabaseHeight(db)
-		factomdHeight := getFactomdHeight()
-		// If we are caught up, continue (wait 10 seconds before we check again)
-		if factomdHeight == databaseHeight {
-			continue
-		}
+	// Update the user where we are right from the start, since the next feedback won't
+	// be until there is a new block, if we are already synced with factomd.
+	fmt.Printf("Starting the Anchor Platform at Height: %s  with %s Objects\n",
+		humanize.Comma(databaseHeight),
+		humanize.Comma(MS.GetCount()))
 
+	for {
+		// Update the user where we are
+		fmt.Printf("Height: %s  Objects: %s  Running time: %s\n",
+			humanize.Comma(databaseHeight),
+			humanize.Comma(MS.GetCount()),
+			database.FormatTimeLapse(time.Now().Sub(running)))
+		for {
+			// Make sure we do not busy wait
+			time.Sleep(10 * time.Second)
+			// If we have been signaled to stop, then return out of the syncing process
+			// This will close the database
+			if Stop {
+				return
+			}
+			// Get the directory block height in factomd and the database and see if we have something to do
+			databaseHeight = GetDatabaseHeight(db)
+			factomdHeight = getFactomdHeight()
+			// If we are caught up, continue (wait 10 seconds before we check again)
+			if factomdHeight == databaseHeight {
+				continue
+			}
+			break
+		}
 		// To estimate how long this is taking and how long it will take, we need the time we started,
 		// and the databaseHeight we started at.
 		begin := time.Now()
@@ -249,12 +285,6 @@ func Sync() {
 		// Writing to the database is really slow if each key/value pair is written by itself, so we
 		// batch the writes.
 		batch := db.BeginBatch()
-
-		// Update the user where we are
-		fmt.Printf("Height: %s  Objects: %s  Running time: %s\n",
-			humanize.Comma(databaseHeight),
-			humanize.Comma(MS.GetCount()),
-			database.FormatTimeLapse(time.Now().Sub(running)))
 
 		for dbheight := databaseHeight + 1; !Stop && dbheight <= factomdHeight; dbheight++ {
 
@@ -268,7 +298,7 @@ func Sync() {
 			// Every so often we are going to give feedback to the user about syncing.  But only if
 			// we are syncing more than 100 blocks.  Otherwise, we just do our job and let the UI provide
 			// feedback.  Always print the first time.
-			if dbheight != 0 && dbheight%1000 == 0 && factomdHeight-dbheight >= 10 {
+			if dbheight != 0 && dbheight%5000 == 0 && factomdHeight-dbheight >= 10 {
 				// Figure out how long we have been syncing
 				timeSpent := time.Now().Sub(begin)
 				// Figure out how much of the missing blocks we have processed
@@ -278,12 +308,14 @@ func Sync() {
 				timeLeft := int64(float64(factomdHeight-dbheight) * timePerBlock)
 				// fmt.Printf("Time per block %6.4f and blocks left %d of %d\n", timePerBlock, factomdHeight-dbheight, factomdHeight)
 				// Print our feedback
-				fmt.Printf("%s Height: %10s  Objects: %13s  Done: %02.0f%%  Left: %s \n",
+				fmt.Printf("%s Height: %10s  Objects: %13s  Done: %02.0f%%  Left: %s  ~total: %s\n",
 					database.FormatTimeLapse(timeSpent),
 					humanize.Comma(dbheight),
 					humanize.Comma(MS.GetCount()),
 					percentDone*100,
-					database.FormatTimeLapseSeconds(int64(timeLeft)))
+					database.FormatTimeLapseSeconds(int64(timeLeft)),
+					database.FormatTimeLapseSeconds(int64(timeLeft)+int64(timeSpent.Seconds())),
+				)
 			}
 
 			// Every 10k key pairs, write all the key values to the database.  Note that batch can be reused.

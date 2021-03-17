@@ -15,8 +15,11 @@ var bucket map[string][]byte
 
 // General constants
 const (
-	Mark     = int64(0x400) // Merkle State Mark at every 1024 (hex 400) elements
-	MarkMask = Mark - 1     // Mask to Mark, 1023
+	// Marks are the states just before we hit a minimum power of 2.  This allows
+	// us to skip all the intervening states when creating a Merkle proof for a receipt for a hash.
+	MarkPower = 10
+	Mark      = int64(1) << MarkPower // Merkle State Mark at every 1024 (hex 400 or 1<<10) elements
+	MarkMask  = Mark - 1              // Mask to Mark, 1023
 )
 
 // buckets
@@ -37,4 +40,5 @@ const (
 const (
 	MetaLabel        = int64(iota+1) << 16 // buckets in the low 16 bits, Labels in higher bits
 	MerkleStateMarks                       // Merkle State at every 1024 element mark
+	MerkleStateNext                        // Next hash added to a MerkleStateMark
 )
