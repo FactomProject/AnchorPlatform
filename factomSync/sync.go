@@ -40,7 +40,7 @@ func GetDatabaseHeight(db *database.DB) (databaseHeight int64) {
 
 	databaseHeightBytes := db.Get(database.DBlockBucket, []byte("head")) // Get the int64 highest directory block height
 	if len(databaseHeightBytes) != 8 {                                   // If we don't find an int64 value, then return zero
-		return 0
+		return -1
 	}
 
 	databaseHeight, _ = database.BytesInt64(db.Get(database.DBlockBucket, []byte("head"))) // Convert bytes to int64
