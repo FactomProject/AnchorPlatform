@@ -1,7 +1,10 @@
 package receipts
 
 import (
+	"crypto/sha256"
 	"fmt"
+
+	"github.com/FactomProject/AnchorPlatform/factomSync"
 
 	"github.com/AccumulateNetwork/SMT/smt"
 
@@ -14,8 +17,6 @@ type ApplyHash struct {
 }
 
 type Receipt struct {
-	Right          bool         // True if the hash is coming at our anchor from the right
-	Height         int          // Height of the target hash in the merkle state (working variable, not part of proof)
 	Object         [32]byte     // Hash for which we want a proof.
 	ObjectDbheight int64        // Directory Block Height of the Object
 	AnchorDbheight int64        // Directory Block Height of the Anchor
@@ -32,31 +33,11 @@ func (r *Receipt) Init(object [32]byte, objectDbheight, anchorDBHeight int64) {
 	r.AnchorDbheight = anchorDBHeight
 }
 
-// AddHash
-// Add the given hash and update the target hash.  We update the ApplyHashes list,
-// the receipt height, and the Anchor values.
-func (r *Receipt) AddHash(MS *smt.MerkleState, hash [32]byte, height int) {
-
-}
-
-// GetDbheight
-// Get the dbheight of a given object.  If the object is not found in the database, return -1
-func GetDbheight(db *database.DB, object []byte) int64 {
-	// Pull the value from the database
-	value := db.Get(database.ObjectBucket, object[:])
-	// If I don't find a dbheight for the object, return -1
-	if value == nil {
-		return -1
-	}
-	// Return the int64 value
-	dbheight, _ := database.BytesInt64(value)
-	return dbheight
-}
-
 // GetMerkleState
 // Get the MerkleState at the given dbheight
 func GetMerkleState(db *database.DB, dbheight int64) (MS *smt.MerkleState) {
-	if data := db.Get(database.MerkleStateBucket, database.Int64Bytes(dbheight)); data == nil {
+
+	if data := db.Get(database.DBlockBucket, database.Int64Bytes(dbheight)); data == nil {
 		return nil
 	} else {
 		MS = new(smt.MerkleState)
@@ -72,9 +53,14 @@ func GetReceipt(object [32]byte, anchorHeight int64) (receipt *Receipt, err erro
 	db := database.GetDB()
 
 	// Look up the dbheight of the object.  If the object isn't in the database, GetDbheight will return -1
-	dbheight := GetDbheight(db, object[:])
+	dbheight := factomSync.GetObjectDbheight(db, object[:])
 	if dbheight < 0 {
 		return nil, fmt.Errorf("the object %x is not in the database", object)
+	}
+
+	// Make sure the anchorHeight actually includes the dbheight
+	if dbheight > anchorHeight {
+		return nil, fmt.Errorf("the anchorHeight %d is less than the object's dbheight %d", anchorHeight, dbheight)
 	}
 
 	// We have to look at dbheight all the way to anchorHeight.
@@ -163,7 +149,9 @@ func GetReceipt(object [32]byte, anchorHeight int64) (receipt *Receipt, err erro
 		searchHeight++
 		SearchMerkleState = GetMerkleState(db, searchHeight)
 		SearchIndex = 0
-
+		if (anchorHeight-searchHeight)&0xFFFF == 0 {
+			fmt.Println("Adding searchHeight ", searchHeight)
+		}
 	}
 	var anchor *smt.Hash
 	for i, v := range AnchorMerkleState.Pending {
@@ -204,4 +192,24 @@ func GetReceipt(object [32]byte, anchorHeight int64) (receipt *Receipt, err erro
 	receipt.Anchor = *anchor
 
 	return receipt, nil
+}
+
+// Receipt
+// Take a receipt and validate that the
+func (r Receipt) Validate() bool {
+	anchor := r.Object // To begin with, we start with the object as the anchor
+	// Now apply all the path hashes to the anchor
+	for _, applyHash := range r.ApplyHashes {
+		// Need a [32]byte to slice
+		hash := [32]byte(applyHash.Hash)
+		if applyHash.Right {
+			// If this hash comes from the right, apply it that way
+			anchor = sha256.Sum256(append(anchor[:], hash[:]...))
+		} else {
+			// If this hash comes from the left, apply it that way
+			anchor = sha256.Sum256(append(hash[:], anchor[:]...))
+		}
+	}
+	// In the end, anchor should be the same hash the receipt expects.
+	return anchor == r.Anchor
 }

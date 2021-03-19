@@ -24,13 +24,11 @@ const (
 
 // buckets
 const (
-	DBlockBucket      = int64(iota + 1) // Index information about directory blocks
-	ChainBucket                         // Index of ChainIDs to the first entry in that chain
-	ObjectBucket                        // Index information about general objects in Factom
-	MerkleStateBucket                   // Index information about Merkle States
-	BitcoinBucket                       //
-	EthereumBucket
-	TestBucket
+	DBlockBucket = int64(iota + 1) // Index information about directory blocks
+	ChainBucket                    // Index of ChainIDs to the first entry in that chain
+	ObjectBucket                   // Index information about general objects in Factom
+	MarkBucket                     // Marks track Merkle States at some power of 2
+	TestBucket                     // Throw away bucket for testing
 )
 
 // labels
@@ -38,7 +36,9 @@ const (
 // For example MerkleStateBucket can track indexes by DBHeight, and MerkleStateBucket+MerkleStateMarks can track
 // indexes by element count.
 const (
-	MetaLabel        = int64(iota+1) << 16 // buckets in the low 16 bits, Labels in higher bits
-	MerkleStateMarks                       // Merkle State at every 1024 element mark
-	MerkleStateNext                        // Next hash added to a MerkleStateMark
+	_           = int64(iota) << 16 // buckets in the low 16 bits, Labels in higher bits
+	MerkleState                     // indexed by count, Merkle State at every 1024 element mark
+	Dbheight                        // indexed by count, DBHeight that holds the MerkleState
+	MarkNext                        // indexed by count, the next Hash added to the Mark
+	ObjectCount                     // Count of hashes in the Merkle Tree at this point
 )

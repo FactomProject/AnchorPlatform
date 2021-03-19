@@ -9,39 +9,45 @@ import (
 	"github.com/FactomProject/AnchorPlatform/database"
 )
 
-func TestGetReceipt2(t *testing.T) {
+func TestGetReceipt(t *testing.T) {
 
-	var object [32]byte
-	objectSlice, _ := hex.DecodeString("3a4014a3ea9ccbe3f64b6178972e4a8828317cc3ffb491accf1ee4f8fcce747f")
-	copy(object[:], objectSlice)
-	if receipt, err := GetReceipt(object, 0); err != nil {
+	db := database.GetDB()
+	ms := GetMerkleState(db, 3)
+	object := ms.HashList[3]
+	if receipt, err := GetReceipt(object, 3); err != nil {
 		t.Error(err)
 	} else {
-		fmt.Printf("Object %x\n", receipt.Object)
-		fmt.Printf("Anchor %x\n", receipt.Anchor)
-		fmt.Printf("DBHeight %d\n", receipt.ObjectDbheight)
-		fmt.Printf("AnchorHeight %d\n", receipt.AnchorDbheight)
-		working := object
-		for _, v := range receipt.ApplyHashes {
-			r := "L"
-			if v.Right {
-				r = "R"
-				working = sha256.Sum256(append(working[:], v.Hash[:]...))
-			} else {
-				working = sha256.Sum256(append(v.Hash[:], working[:]...))
+		if !receipt.Validate() {
+			t.Error("Failed to produce a valid receipt")
+		}
+		// Keeping these prints around because they make debugging easier
+		if false {
+			fmt.Printf("Object %x\n", receipt.Object)
+			fmt.Printf("Anchor %x\n", receipt.Anchor)
+			fmt.Printf("DBHeight %d\n", receipt.ObjectDbheight)
+			fmt.Printf("AnchorHeight %d\n", receipt.AnchorDbheight)
+			working := object
+			for _, v := range receipt.ApplyHashes {
+				r := "L"
+				if v.Right {
+					r = "R"
+					working = sha256.Sum256(append(working[:], v.Hash[:]...))
+				} else {
+					working = sha256.Sum256(append(v.Hash[:], working[:]...))
+				}
+				fmt.Printf(" Apply %s %x working: %x \n", r, v.Hash, working)
 			}
-			fmt.Printf(" Apply %s %x working: %x \n", r, v.Hash, working)
 		}
 	}
 
 }
 
-func TestGetReceipt(t *testing.T) {
+func TestGetReceiptBig(t *testing.T) {
 
 	var object [32]byte
-	objectSlice, _ := hex.DecodeString("3a4014a3ea9ccbe3f64b6178972e4a8828317cc3ffb491accf1ee4f8fcce747f")
+	objectSlice, _ := hex.DecodeString("abf01aabe99bdf9adf70545c466ae9d7f509dfdda90519f1e08e8a77d140385c")
 	copy(object[:], objectSlice)
-	if receipt, err := GetReceipt(object, 1); err != nil {
+	if receipt, err := GetReceipt(object, 289139); err != nil {
 		t.Error(err)
 	} else {
 		fmt.Printf("Object %x\n", receipt.Object)

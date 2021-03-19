@@ -22,7 +22,7 @@ func TestMarshal(t *testing.T) {
 	}
 	fmt.Printf("%x\n%x\n", data1, data2)
 
-	MS1.AddToChain(MS1.HashFunction([]byte{1, 2, 3, 4, 5}))
+	MS1.AddToMerkleTree(MS1.HashFunction([]byte{1, 2, 3, 4, 5}))
 
 	data1 = MS1.Marshal()
 	MS2.UnMarshal(data1)
@@ -36,7 +36,7 @@ func TestMarshal(t *testing.T) {
 	fmt.Printf("%x\n%x\n", data1, data2)
 
 	for i := 0; i < 1; i++ {
-		MS1.AddToChain(MS1.HashFunction([]byte(fmt.Sprintf("%8d", i))))
+		MS1.AddToMerkleTree(MS1.HashFunction([]byte(fmt.Sprintf("%8d", i))))
 	}
 
 	data1 = MS1.Marshal()
