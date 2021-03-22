@@ -32,7 +32,7 @@ func Sync(conf *config.Config) {
 	// Set our hashing function in the Merkle State
 	MS.InitSha256()
 	// Get our database
-	db := database.GetDB()
+	db := database.GetDB(conf.DBName)
 
 	defer func() { _ = db.Close() }()
 

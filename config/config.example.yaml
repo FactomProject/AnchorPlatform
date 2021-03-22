@@ -1,5 +1,6 @@
 # Config file should be located at ~/.AnchorMaker/config.yaml
 httpport: 8082
+dbname: db
 factom:
   server: https://api.factomd.net
   user: ""
