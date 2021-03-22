@@ -282,12 +282,15 @@ func GetReceipt(object [32]byte, anchorHeight int64) (receipt *Receipt, err erro
 		currentCount := CurrentMerkleState.GetCount()
 		markCount := currentCount&((step-1)^-1) + step - 1
 
-		// Get the next object to add at the mark (updates our receipt properly
-		LastMerkleState := CurrentMerkleState.Copy()
-		_ = LastMerkleState
-		CurrentMerkleState, markNext = GetMarkState(db, markCount)
-		Right = true       // Add the hash from the right
-		AddAHash(markNext) // Now we are either ready to continue the search, or build our receipt
+		// If there is room to go to the next sub merkle tree, then go there.
+		if markCount <= AnchorMerkleState.GetCount() {
+			// Get the next object to add at the mark (updates our receipt properly
+			LastMerkleState := CurrentMerkleState.Copy()
+			_ = LastMerkleState
+			CurrentMerkleState, markNext = GetMarkState(db, markCount)
+			Right = true       // Add the hash from the right
+			AddAHash(markNext) // Now we are either ready to continue the search, or build our receipt
+		}
 
 		// Have we found the highest Sub Merkle Tree prior to the Anchor,
 		// and there is no Sub Merkle Tree that's higher that holds the Anchor

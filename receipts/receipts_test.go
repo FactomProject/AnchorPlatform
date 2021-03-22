@@ -19,11 +19,11 @@ func TestGetReceipt(t *testing.T) {
 	fail := false
 	failCount := 0
 	start := time.Now()
-	for objectHeight := int64(3); objectHeight < DBHead-1; objectHeight++ {
+	for objectHeight := int64(3); objectHeight < DBHead-1; objectHeight += 100 {
 
-		if objectHeight%1000 == 0 {
+		if true || objectHeight%1000 == 0 {
 			sofar := time.Now().Sub(start)
-			objectsPerSecond := float64(objectHeight) / sofar.Seconds()
+			objectsPerSecond := float64(objectHeight/100) / sofar.Seconds()
 			fmt.Printf("Processed: %6d Failures: %d Test Time: %s Receipts per second: %8.0f\n",
 				objectHeight,
 				failCount,
