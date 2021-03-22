@@ -13,8 +13,8 @@ import (
 // Config structure
 type Config struct {
 	Factom struct {
-		Server    string `default:"" json:"endpoint" form:"endpoint" query:"endpoint" required:"false"`
-		User      string `default:"" json:"username" form:"username" query:"username" required:"false"`
+		Server    string `default:"" json:"server" form:"server" query:"server" required:"false"`
+		User      string `default:"" json:"user" form:"user" query:"user" required:"false"`
 		Password  string `default:"" json:"password" form:"password" query:"password" required:"false"`
 		EsAddress string `default:"" json:"esaddress" form:"esaddress" query:"esaddress" required:"false"`
 	}
