@@ -1,0 +1,8 @@
+# Config file should be located at ~/.AnchorMaker/config.yaml
+factom:
+  server: https://api.factomd.net
+  user: ""
+  password: ""
+ledger:
+  bitcoin:
+    endpoint: https://bitcoin-node.org

@@ -7,7 +7,9 @@ import (
 
 	"github.com/dustin/go-humanize"
 
+	"github.com/FactomProject/AnchorPlatform/config"
 	"github.com/FactomProject/AnchorPlatform/database"
+	"github.com/FactomProject/factom"
 )
 
 // Sync
@@ -15,6 +17,20 @@ import (
 // behind factomd, then blocks are requested and added to our database.  Furthermore, we grab all the
 // anchors written to external chains as they are posted to the Anchor Chain in factom.
 func Sync() {
+
+	conf := config.GetConfig()
+
+	// Check for custom factomd configuration
+	if conf.Factom.Server != "" {
+		fmt.Printf("Factomd server: %s\n", conf.Factom.Server)
+		factom.SetFactomdServer(conf.Factom.Server)
+	} else {
+		fmt.Printf("Factomd server: localhost\n")
+	}
+	if conf.Factom.User != "" && conf.Factom.Password != "" {
+		factom.SetFactomdRpcConfig(conf.Factom.User, conf.Factom.Password)
+	}
+
 	// Set our hashing function in the Merkle State
 	MS.InitSha256()
 	// Get our database
