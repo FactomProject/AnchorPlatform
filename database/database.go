@@ -22,6 +22,7 @@ import (
 
 type DB struct {
 	DBHome   string
+	DBName   string
 	badgerDB *badger.DB
 }
 
@@ -35,11 +36,12 @@ type Batch []*BatchEntry
 
 var db *DB
 
-func GetDB() *DB {
+func GetDB(DBName string) *DB {
 	if db != nil {
 		return db
 	}
 	db = new(DB)
+	db.DBName = DBName
 	db.InitDB()
 	return db
 }
@@ -56,7 +58,7 @@ func (d *DB) Close() error {
 func (d *DB) InitDB() {
 	// Make sure the home directory exists. If it does, then use it, otherwise go find the home directory.
 	if len(d.DBHome) == 0 {
-		d.DBHome = fmt.Sprintf("%s%s%03d", GetHomeDir(), "/.AnchorMaker/badger", 0)
+		d.DBHome = fmt.Sprintf("%s%s%s", GetHomeDir(), "/.AnchorMaker/", db.DBName)
 	}
 	// Make sure all directories exist
 	err := os.MkdirAll(d.DBHome, 0777)
