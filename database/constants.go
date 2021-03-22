@@ -20,9 +20,12 @@ const (
 	MarkPower = 10
 	Mark      = int64(1) << MarkPower // Merkle State Mark at every 1024 (hex 400 or 1<<10) elements
 	MarkMask  = Mark - 1              // Mask to Mark, 1023
+	Head      = "head"                // The key holding the last dbheight value known to the Anchor Platform
 )
 
+//--------------
 // buckets
+//--------------
 const (
 	DBlockBucket = int64(iota + 1) // Index information about directory blocks
 	ChainBucket                    // Index of ChainIDs to the first entry in that chain
@@ -31,7 +34,9 @@ const (
 	TestBucket                     // Throw away bucket for testing
 )
 
+//------------
 // labels
+//------------
 // Labels allow buckets to index different sorts of values.  For example, indexing dbheight vs element counts
 // For example MerkleStateBucket can track indexes by DBHeight, and MerkleStateBucket+MerkleStateMarks can track
 // indexes by element count.

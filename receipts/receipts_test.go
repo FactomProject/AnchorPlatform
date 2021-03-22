@@ -5,41 +5,67 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/FactomProject/AnchorPlatform/factomSync"
 
 	"github.com/FactomProject/AnchorPlatform/database"
 )
 
 func TestGetReceipt(t *testing.T) {
-
 	db := database.GetDB()
-	ms := GetMerkleState(db, 3)
-	object := ms.HashList[3]
-	if receipt, err := GetReceipt(object, 3); err != nil {
-		t.Error(err)
-	} else {
-		if !receipt.Validate() {
-			t.Error("Failed to produce a valid receipt")
+
+	DBHead := factomSync.GetDatabaseHeight(db)
+	fail := false
+	failCount := 0
+	start := time.Now()
+	for objectHeight := int64(3); objectHeight < DBHead-1; objectHeight++ {
+
+		if objectHeight%1000 == 0 {
+			sofar := time.Now().Sub(start)
+			objectsPerSecond := float64(objectHeight) / sofar.Seconds()
+			fmt.Printf("Processed: %6d Failures: %d Test Time: %s Receipts per second: %8.0f\n",
+				objectHeight,
+				failCount,
+				database.FormatTimeLapse(sofar),
+				objectsPerSecond)
+			fmt.Println("Processed ", objectHeight, " blocks. ", failCount, " failures")
 		}
-		// Keeping these prints around because they make debugging easier
-		if false {
-			fmt.Printf("Object %x\n", receipt.Object)
-			fmt.Printf("Anchor %x\n", receipt.Anchor)
-			fmt.Printf("DBHeight %d\n", receipt.ObjectDbheight)
-			fmt.Printf("AnchorHeight %d\n", receipt.AnchorDbheight)
-			working := object
-			for _, v := range receipt.ApplyHashes {
-				r := "L"
-				if v.Right {
-					r = "R"
-					working = sha256.Sum256(append(working[:], v.Hash[:]...))
-				} else {
-					working = sha256.Sum256(append(v.Hash[:], working[:]...))
-				}
-				fmt.Printf(" Apply %s %x working: %x \n", r, v.Hash, working)
+		ms := GetMerkleState(db, objectHeight)
+		msPrior := GetMerkleState(db, objectHeight-1)
+
+		object := ms.HashList[2] // Get the hash of the Factoid block
+
+		AnchorState := GetMerkleState(db, DBHead)
+		AnchorPrior := GetMerkleState(db, DBHead-1)
+		if receipt, err := GetReceipt(object, DBHead); err != nil {
+			fmt.Print(fmt.Sprintf("%v Receipt for %d %x", err, ms.GetCount(), object))
+		} else {
+
+			// Keeping these prints around because they make debugging easier
+			if false {
+				fmt.Print(receipt.String())
 			}
+
+			if !receipt.Validate() {
+				if !fail {
+					t.Error(fmt.Sprint(fmt.Sprintf("failed obj(%d) at objects: %d-%d for anchor at dbheight: %6d %x Objects: %d-%d",
+						objectHeight,
+						msPrior.GetCount(),
+						ms.GetCount(),
+						DBHead,
+						object,
+						AnchorPrior.GetCount(),
+						AnchorState.GetCount())))
+				}
+				fail = true
+				failCount++
+			} else {
+				fail = false
+			}
+
 		}
 	}
-
 }
 
 func TestGetReceiptBig(t *testing.T) {

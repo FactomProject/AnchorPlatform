@@ -32,13 +32,17 @@ func getFactomdHeight() (factomdHeight int64) {
 // Return highest directory block currently processed and included in the Anchor Platform Database
 func GetDatabaseHeight(db *database.DB) (databaseHeight int64) {
 
-	databaseHeightBytes := db.Get(database.DBlockBucket, []byte("head")) // Get the int64 highest directory block height
-	if len(databaseHeightBytes) != 8 {                                   // If we don't find an int64 value, then return zero
+	databaseHeightBytes := db.Get(
+		database.DBlockBucket,
+		[]byte(database.Head)) // Get the int64 highest directory block height
+	if len(databaseHeightBytes) != 8 { // If we don't find an int64 value, then return zero
 		return -1
 	}
 
-	databaseHeight, _ = database.BytesInt64(db.Get(database.DBlockBucket, []byte("head"))) // Convert bytes to int64
-	return databaseHeight                                                                  // Return the height
+	databaseHeight, _ = database.BytesInt64(db.Get(
+		database.DBlockBucket,
+		[]byte(database.Head))) // Convert bytes to int64
+	return databaseHeight // Return the height
 }
 
 // GetObjectDbheight
@@ -60,7 +64,11 @@ func GetObjectDbheight(db *database.DB, object []byte) int64 {
 // We don't worry about being exact, because syncing will just overwrite what is already there
 // with the same values.
 func SetDatabaseHeight(batch *database.Batch, db *database.DB, dbheight int64) {
-	_ = db.PutBatch(batch, database.DBlockBucket, []byte("head"), database.Int64Bytes(dbheight))
+	_ = db.PutBatch(
+		batch,
+		database.DBlockBucket,
+		[]byte(database.Head),
+		database.Int64Bytes(dbheight))
 }
 
 // AddHash()
@@ -80,31 +88,27 @@ func AddHash(db *database.DB, batch *database.Batch, hash string, dbheight int64
 	// Look for the power of 2 boundary.  We need the hash that spills into the database.Mark to
 	// create fast proofs.  That's going to be the HashFunction(MS.pending[database.MarkPower] + hash)
 	count := MS.GetCount()
-	// Add the hash to our Merkle Tree, no matter what.  However, if this is a duplicate we won't index it.
-	MS.AddToMerkleTree(hashBytes)
-	// Are we at a mark boundary? count has low bits clear (but ignore count == 0)
-	if count > 0 && count&database.MarkMask == 0 {
+	// Are we at a mark boundary? We need the state just before count has low bits clear (but ignore count == 0)
+	// When processing a receipt, the search can leap to the mark at the same height further in the count.
+	// So we just need the state just before a higher sub merkle root is computed, and we need the object
+	// that's going to push us there.
+	if count > 0 && (count+1)&database.MarkMask == 0 {
 		// Marshal the Mark State
 		data := MS.Marshal()
 		// Save the state at the Mark Point
 		_ = db.PutBatch(batch,
 			database.MarkBucket+database.MerkleState, // Our bucket
 			database.Int64Bytes(count),               // The Mark count
-			data[:])                                  // The Merkle State at the Mark Point
-		// Save the dbheight
-		_ = db.PutBatch(batch,
-			database.MarkBucket+database.Dbheight, // Our bucket
-			database.Int64Bytes(count),            // The mark count
-			database.Int64Bytes(dbheight))         // The dbheight holding the Mark Point
-		// Save the MerkleState that reflects the adding of the mark
+			data)                                     // The Merkle State at the Mark Point
 
-	} else if count > 0 && (count-1)&database.MarkMask == 0 {
 		// Add the hash to our Merkle Tree, no matter what.  However, if this is a duplicate we won't index it.
-		_ = db.PutBatch(batch,
+		_ = db.PutBatch(batch, // Add the Hash added after the Mark to the database.
 			database.MarkBucket+database.MarkNext, // Our bucket
 			database.Int64Bytes(count),            // This is the Mark Point +1 because it helps us move forward
-			hashBytes[:])                          // The dbheight holding the Mark Point
+			hashBytes[:])                          // The hash of the next entry to be added to the Merkle Tree
 	}
+	// Add the hash to our Merkle Tree, no matter what.  However, if this is a duplicate we won't index it.
+	MS.AddToMerkleTree(hashBytes)
 
 	// Batch this key value pair
 	// First check if we have already indexed this object.  If so, we keep the oldest (what is in the database)
