@@ -12,8 +12,8 @@ import (
 
 // Config structure
 type Config struct {
-	Port   int64 `default:"8082" json:"port" form:"port" query:"port" required:"true"`
-	Factom struct {
+	HTTPPort int `default:"8082" json:"httpport" form:"httpport" query:"httpport" required:"true"`
+	Factom   struct {
 		Server    string `default:"" json:"server" form:"server" query:"server" required:"false"`
 		User      string `default:"" json:"user" form:"user" query:"user" required:"false"`
 		Password  string `default:"" json:"password" form:"password" query:"password" required:"false"`

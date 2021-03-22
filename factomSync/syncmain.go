@@ -16,9 +16,7 @@ import (
 // The Sync process continues as long as the Anchor Platform is running.  When the Anchor Platform is
 // behind factomd, then blocks are requested and added to our database.  Furthermore, we grab all the
 // anchors written to external chains as they are posted to the Anchor Chain in factom.
-func Sync() {
-
-	conf := config.GetConfig()
+func Sync(conf *config.Config) {
 
 	// Check for custom factomd configuration
 	if conf.Factom.Server != "" {
