@@ -134,7 +134,7 @@ func CenterOnObject(
 // GetReceipt
 // Return the receipt for the given object using the anchor at the anchorHeight
 func GetReceipt(object [32]byte, anchorHeight int64) (receipt *Receipt, err error) {
-	db := database.GetDB()
+	db := database.GetDB("db")
 
 	// Look up the dbheight of the object.  If the object isn't in the database, GetDbheight will return -1
 	dbheight := factomSync.GetObjectDbheight(db, object[:])

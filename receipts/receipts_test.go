@@ -13,7 +13,7 @@ import (
 )
 
 func TestGetReceipt(t *testing.T) {
-	db := database.GetDB()
+	db := database.GetDB("db")
 
 	DBHead := factomSync.GetDatabaseHeight(db)
 	fail := false
@@ -43,7 +43,7 @@ func TestGetReceipt(t *testing.T) {
 		} else {
 
 			// Keeping these prints around because they make debugging easier
-			if false {
+			if true {
 				fmt.Print(receipt.String())
 			}
 
@@ -95,7 +95,7 @@ func TestGetReceiptBig(t *testing.T) {
 
 }
 func TestPrintHashes(t *testing.T) {
-	db := database.GetDB()
+	db := database.GetDB("db")
 	for i := 0; i <= 1; i++ {
 		merkleState := GetMerkleState(db, 0+int64(i))
 		fmt.Println("Count: ", merkleState.GetCount())
