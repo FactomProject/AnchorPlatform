@@ -1,12 +1,10 @@
 package factomSync
 
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/FactomProject/AnchorPlatform/database"
 	"github.com/FactomProject/factom"
 )
 
@@ -30,93 +28,22 @@ func getFactomdHeight() (factomdHeight int64) {
 
 // getDatabaseHeight()
 // Return highest directory block currently processed and included in the Anchor Platform Database
-func GetDatabaseHeight(db *database.DB) (databaseHeight int64) {
+func (s *Sync) GetDatabaseHeight() (databaseHeight int64) {
 
-	databaseHeightBytes := db.Get(
-		database.DBlockBucket,
-		[]byte(database.Head)) // Get the int64 highest directory block height
+	databaseHeightBytes := s.Manager.DBManager.Get("Factom",[]byte("Head"))
 	if len(databaseHeightBytes) != 8 { // If we don't find an int64 value, then return zero
 		return -1
 	}
-
-	databaseHeight, _ = database.BytesInt64(db.Get(
-		database.DBlockBucket,
-		[]byte(database.Head))) // Convert bytes to int64
+	databaseHeight, _ = BytesInt64(databaseHeightBytes)
 	return databaseHeight // Return the height
 }
 
-// GetObjectDbheight
-// Get the dbheight of a given object.  If the object is not found in the database, return -1
-func GetObjectDbheight(db *database.DB, object []byte) int64 {
-	// Pull the value from the database
-	value := db.Get(database.ObjectBucket, object[:])
-	// If I don't find a dbheight for the object, return -1
-	if value == nil {
-		return -1
-	}
-	// Return the int64 value
-	dbheight, _ := database.BytesInt64(value)
-	return dbheight
-}
+
 
 // SetDatabaseHeight
 // Set the Database height in the database, so we can pick up syncing where we left off.
 // We don't worry about being exact, because syncing will just overwrite what is already there
 // with the same values.
-func SetDatabaseHeight(batch *database.Batch, db *database.DB, dbheight int64) {
-	_ = db.PutBatch(
-		batch,
-		database.DBlockBucket,
-		[]byte(database.Head),
-		database.Int64Bytes(dbheight))
-}
-
-// AddHash()
-// Add the Hash to the database and to the Merkle Tree for all elements in factomd
-// The factom library handles hashes as strings, but we don't need the bloat, so we convert the strings to binary
-// before we add them to the Anchor Platform database.
-func AddHash(db *database.DB, batch *database.Batch, hash string, dbheight int64) (err error) {
-
-	// Get the binary for the hash, because that is what will be needed here.
-	var hashBytes [32]byte
-	if hashSlice, err := hex.DecodeString(hash); err != nil { // Convert the hash string to a binary hash
-		return err // return any errors
-	} else {
-		copy(hashBytes[:], hashSlice)
-	}
-
-	// Look for the power of 2 boundary.  We need the hash that spills into the database.Mark to
-	// create fast proofs.  That's going to be the HashFunction(MS.pending[database.MarkPower] + hash)
-	count := MS.GetCount()
-	// Are we at a mark boundary? We need the state just before count has low bits clear (but ignore count == 0)
-	// When processing a receipt, the search can leap to the mark at the same height further in the count.
-	// So we just need the state just before a higher sub merkle root is computed, and we need the object
-	// that's going to push us there.
-	if count > 0 && (count+1)&database.MarkMask == 0 {
-		// Marshal the Mark State
-		data := MS.Marshal()
-		// Save the state at the Mark Point
-		_ = db.PutBatch(batch,
-			database.MarkBucket+database.MerkleState, // Our bucket
-			database.Int64Bytes(count),               // The Mark count
-			data)                                     // The Merkle State at the Mark Point
-
-		// Add the hash to our Merkle Tree, no matter what.  However, if this is a duplicate we won't index it.
-		_ = db.PutBatch(batch, // Add the Hash added after the Mark to the database.
-			database.MarkBucket+database.MarkNext, // Our bucket
-			database.Int64Bytes(count),            // This is the Mark Point +1 because it helps us move forward
-			hashBytes[:])                          // The hash of the next entry to be added to the Merkle Tree
-	}
-	// Add the hash to our Merkle Tree, no matter what.  However, if this is a duplicate we won't index it.
-	MS.AddToMerkleTree(hashBytes)
-
-	// Batch this key value pair
-	// First check if we have already indexed this object.  If so, we keep the oldest (what is in the database)
-	objectDbheight := db.Get(database.ObjectBucket, hashBytes[:])
-	if objectDbheight == nil {
-		// If we don't have a reference to this object, then add it to the database
-		_ = db.PutBatch(batch, database.ObjectBucket, hashBytes[:], database.Int64Bytes(dbheight))
-	}
-
-	return nil
+func (s *Sync) SetDatabaseHeight(dbheight int64) {
+	_ = s.Manager.DBManager.PutBatch("Factom",[]byte("Head"),Int64Bytes(dbheight))
 }

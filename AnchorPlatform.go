@@ -8,7 +8,8 @@ import (
 
 func main() {
 	conf := config.GetConfig()
-	api := api.NewAPI(conf)
-	go factomSync.Sync(conf)
-	api.Start()
+	apiInstance := api.NewAPI(conf)
+	sync := new(factomSync.Sync)
+	go sync.Run(conf)
+	_=apiInstance.Start()
 }

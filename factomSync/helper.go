@@ -8,7 +8,7 @@
 //
 // This allows us to put the raw directory block at DBlockBucket+L_raw, and meta data
 // about the directory block at DBlockBucket+MetaLabel
-package database
+package factomSync
 
 import (
 	"fmt"
