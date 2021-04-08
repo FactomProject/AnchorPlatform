@@ -21,9 +21,9 @@ type Config struct {
 		EsAddress string `default:"" json:"esaddress" form:"esaddress" query:"esaddress" required:"false"`
 	}
 	Ledger struct {
-		Bitcoin     Ledger
-		Ethereum    Ledger
-		BitcoinCash Ledger
+		BTC Ledger
+		ETH Ledger
+		BCH Ledger
 	}
 }
 

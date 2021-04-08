@@ -6,5 +6,5 @@ factom:
   user: ""
   password: ""
 ledger:
-  bitcoin:
+  btc:
     endpoint: https://bitcoin-node.org
