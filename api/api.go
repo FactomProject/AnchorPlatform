@@ -1,31 +1,29 @@
 package api
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
-	"net/rpc/jsonrpc"
 	"strconv"
 
+	"github.com/AdamSLevy/jsonrpc2"
 	"github.com/FactomProject/AnchorPlatform/config"
+	"github.com/FactomProject/AnchorPlatform/fees"
 )
 
 type API struct {
 	conf *config.Config
 }
 
+type FeesResponse struct {
+	BTC int
+	ETH int
+}
+
 func NewAPI(conf *config.Config) *API {
 
 	api := API{conf: conf}
 
-	http.HandleFunc("/v2", func(w http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
-		w.Header().Set("Content-Type", "application/json")
-		res := NewRPCRequest(req.Body).Call()
-		io.Copy(w, res)
-	})
+	jsonrpc2.RegisterMethod("fees", getFees)
 
 	return &api
 
@@ -33,45 +31,19 @@ func NewAPI(conf *config.Config) *API {
 
 func (api *API) Start() error {
 	fmt.Printf("Starting JSON-RPC API at http://localhost:%d\n", api.conf.HTTPPort)
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(api.conf.HTTPPort), nil))
+	http.ListenAndServe(":"+strconv.Itoa(api.conf.HTTPPort), jsonrpc2.HTTPRequestHandler)
 
 	return nil
 }
 
-// rpcRequest represents a RPC request.
-// rpcRequest implements the io.ReadWriteCloser interface.
-type rpcRequest struct {
-	r    io.Reader     // holds the JSON formated RPC request
-	rw   io.ReadWriter // holds the JSON formated RPC response
-	done chan bool     // signals then end of the RPC request
-}
+func getFees(params interface{}) jsonrpc2.Response {
 
-// NewRPCRequest returns a new rpcRequest.
-func NewRPCRequest(r io.Reader) *rpcRequest {
-	var buf bytes.Buffer
-	done := make(chan bool)
-	return &rpcRequest{r, &buf, done}
-}
+	btcf, _ := fees.GetBTCFees()
+	ethf, _ := fees.GetETHFees()
 
-// Read implements the io.ReadWriteCloser Read method.
-func (r *rpcRequest) Read(p []byte) (n int, err error) {
-	return r.r.Read(p)
-}
+	resp := &FeesResponse{}
+	resp.BTC = btcf.FastestFee
+	resp.ETH = ethf.Fast / 10
 
-// Write implements the io.ReadWriteCloser Write method.
-func (r *rpcRequest) Write(p []byte) (n int, err error) {
-	return r.rw.Write(p)
-}
-
-// Close implements the io.ReadWriteCloser Close method.
-func (r *rpcRequest) Close() error {
-	r.done <- true
-	return nil
-}
-
-// Call invokes the RPC request, waits for it to complete, and returns the results.
-func (r *rpcRequest) Call() io.Reader {
-	go jsonrpc.ServeConn(r)
-	<-r.done
-	return r.rw
+	return jsonrpc2.NewResponse(resp)
 }
