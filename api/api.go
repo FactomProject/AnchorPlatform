@@ -1,12 +1,15 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
-	"github.com/AdamSLevy/jsonrpc2"
+	"github.com/AdamSLevy/jsonrpc2/v14"
 	"github.com/FactomProject/AnchorPlatform/config"
 	"github.com/FactomProject/AnchorPlatform/fees"
 )
@@ -16,18 +19,22 @@ type API struct {
 }
 
 type FeesResponse struct {
-	BTC int
-	ETH int
+	BTC int `json:"btc"`
+	ETH int `json:"eth"`
 }
 
 func NewAPI(conf *config.Config) *API {
 
 	api := API{conf: conf}
 
-	jsonrpc2.RegisterMethod("fees", getFees)
-
 	http.HandleFunc("/", UIHandler)
-	http.HandleFunc("/v2", jsonrpc2.HTTPRequestHandler)
+
+	methods := jsonrpc2.MethodMap{
+		"fees": getFees,
+	}
+
+	apihandler := jsonrpc2.HTTPRequestHandler(methods, log.New(os.Stdout, "", 0))
+	http.HandleFunc("/v2", apihandler)
 
 	return &api
 
@@ -40,7 +47,7 @@ func (api *API) Start() error {
 	return nil
 }
 
-func getFees(params interface{}) jsonrpc2.Response {
+func getFees(_ context.Context, _ json.RawMessage) interface{} {
 
 	btcf, _ := fees.GetBTCFees()
 	ethf, _ := fees.GetETHFees()
@@ -49,7 +56,7 @@ func getFees(params interface{}) jsonrpc2.Response {
 	resp.BTC = btcf.FastestFee
 	resp.ETH = ethf.Fast / 10
 
-	return jsonrpc2.NewResponse(resp)
+	return resp
 }
 
 func UIHandler(w http.ResponseWriter, r *http.Request) {
