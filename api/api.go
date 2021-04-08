@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -25,13 +26,16 @@ func NewAPI(conf *config.Config) *API {
 
 	jsonrpc2.RegisterMethod("fees", getFees)
 
+	http.HandleFunc("/", UIHandler)
+	http.HandleFunc("/v2", jsonrpc2.HTTPRequestHandler)
+
 	return &api
 
 }
 
 func (api *API) Start() error {
 	fmt.Printf("Starting JSON-RPC API at http://localhost:%d\n", api.conf.HTTPPort)
-	http.ListenAndServe(":"+strconv.Itoa(api.conf.HTTPPort), jsonrpc2.HTTPRequestHandler)
+	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(api.conf.HTTPPort), nil))
 
 	return nil
 }
@@ -46,4 +50,8 @@ func getFees(params interface{}) jsonrpc2.Response {
 	resp.ETH = ethf.Fast / 10
 
 	return jsonrpc2.NewResponse(resp)
+}
+
+func UIHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "UI there\n")
 }
