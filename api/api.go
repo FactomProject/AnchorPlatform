@@ -12,6 +12,7 @@ import (
 	"github.com/AdamSLevy/jsonrpc2/v14"
 	"github.com/FactomProject/AnchorPlatform/config"
 	"github.com/FactomProject/AnchorPlatform/fees"
+	"github.com/FactomProject/factom"
 )
 
 type API struct {
@@ -19,8 +20,19 @@ type API struct {
 }
 
 type FeesResponse struct {
-	BTC int `json:"btc"`
-	ETH int `json:"eth"`
+	BTC int64 `json:"btc"`
+	ETH int64 `json:"eth"`
+}
+
+type HeightsResponse struct {
+	DirectoryBlockHeight int64           `json:"directoryblockheight"`
+	EntryBlockHeight     int64           `json:"entryblockheight"`
+	AnchorHeight         []*LedgerHeight `json:"anchorheight"`
+}
+
+type LedgerHeight struct {
+	Ledger string `json:"ledger"`
+	Height int64  `json:"height"`
 }
 
 func NewAPI(conf *config.Config) *API {
@@ -30,7 +42,8 @@ func NewAPI(conf *config.Config) *API {
 	http.HandleFunc("/", UIHandler)
 
 	methods := jsonrpc2.MethodMap{
-		"fees": getFees,
+		"fees":    getFees,
+		"heights": getHeights,
 	}
 
 	apihandler := jsonrpc2.HTTPRequestHandler(methods, log.New(os.Stdout, "", 0))
@@ -55,6 +68,22 @@ func getFees(_ context.Context, _ json.RawMessage) interface{} {
 	resp := &FeesResponse{}
 	resp.BTC = btcf.FastestFee
 	resp.ETH = ethf.Fast / 10
+
+	return resp
+}
+
+func getHeights(_ context.Context, _ json.RawMessage) interface{} {
+
+	heights, _ := factom.GetHeights()
+
+	resp := &HeightsResponse{}
+	resp.DirectoryBlockHeight = heights.DirectoryBlockHeight
+	resp.EntryBlockHeight = heights.EntryBlockHeight
+
+	btcAnchorHeight := int64(0)
+	ethAnchorHeight := int64(0)
+
+	resp.AnchorHeight = append(resp.AnchorHeight, &LedgerHeight{Ledger: "BTC", Height: btcAnchorHeight}, &LedgerHeight{Ledger: "ETH", Height: ethAnchorHeight})
 
 	return resp
 }

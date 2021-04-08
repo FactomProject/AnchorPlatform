@@ -11,19 +11,19 @@ import (
 // Divide by 10 to get fees in gwei!
 // https://docs.ethgasstation.info
 type ETHFees struct {
-	Fast    int // < 2m
-	Fastest int // < 30s
-	SafeLow int
-	Average int // < 5m
+	Fast    int64 // < 2m
+	Fastest int64 // < 30s
+	SafeLow int64
+	Average int64 // < 5m
 }
 
 // BTCFees represents BTC fees received from external API
 // https://mempool.space/api
 type BTCFees struct {
-	FastestFee  int // next block
-	HalfHourFee int
-	HourFee     int
-	MinimumFee  int
+	FastestFee  int64 // next block
+	HalfHourFee int64
+	HourFee     int64
+	MinimumFee  int64
 }
 
 // GetETHFees returns real-time ETHFees
