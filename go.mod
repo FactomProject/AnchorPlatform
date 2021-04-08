@@ -9,4 +9,5 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/jinzhu/configor v1.2.1
 	github.com/mcuadros/go-defaults v1.2.0
+	github.com/stretchr/testify v1.6.1
 )
