@@ -12,3 +12,5 @@ require (
 	github.com/mcuadros/go-defaults v1.2.0
 	github.com/stretchr/testify v1.6.1
 )
+
+replace github.com/AdamSLevy/jsonrpc2 => github.com/AdamSLevy/jsonrpc2 v1.1.2-0.20210408185727-2d689058f1f8
