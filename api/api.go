@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/AdamSLevy/jsonrpc2/v14"
+	"github.com/FactomProject/AnchorPlatform/anchormaker"
 	"github.com/FactomProject/AnchorPlatform/config"
 	"github.com/FactomProject/AnchorPlatform/fees"
 	"github.com/FactomProject/factom"
@@ -42,8 +43,9 @@ func NewAPI(conf *config.Config) *API {
 	http.Handle("/", http.FileServer(http.Dir("ui/build")))
 
 	methods := jsonrpc2.MethodMap{
-		"fees":    getFees,
-		"heights": getHeights,
+		"fees":       getFees,
+		"heights":    getHeights,
+		"did-create": createDID,
 	}
 
 	apihandler := jsonrpc2.HTTPRequestHandler(methods, log.New(os.Stdout, "", 0))
@@ -87,4 +89,11 @@ func getHeights(_ context.Context, _ json.RawMessage) interface{} {
 	resp.AnchorHeight = append(resp.AnchorHeight, &LedgerHeight{Ledger: "eth", Height: ethAnchorHeight})
 
 	return resp
+}
+
+func createDID(_ context.Context, _ json.RawMessage) interface{} {
+
+	did, _ := anchormaker.NewDID(nil)
+
+	return did
 }

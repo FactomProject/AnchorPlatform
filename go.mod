@@ -5,6 +5,7 @@ go 1.15
 require (
 	github.com/AccumulateNetwork/SMT v0.0.12
 	github.com/AdamSLevy/jsonrpc2/v14 v14.1.0
+	github.com/DeFacto-Team/go-factom-did v0.0.0-20210413105953-35d6fc8529fb // indirect
 	github.com/FactomProject/factom v0.4.0
 	github.com/dgraph-io/badger/v2 v2.2007.2
 	github.com/dustin/go-humanize v1.0.0
