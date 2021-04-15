@@ -39,7 +39,7 @@ func NewAPI(conf *config.Config) *API {
 
 	api := API{conf: conf}
 
-	http.Handle("/", http.FileServer(http.Dir("/ui/build")))
+	http.Handle("/", http.FileServer(http.Dir("ui/build")))
 
 	methods := jsonrpc2.MethodMap{
 		"fees":    getFees,
