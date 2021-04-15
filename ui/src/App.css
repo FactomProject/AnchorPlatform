@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap');
+@import 'style.css';
+
+.react-icons {
+  vertical-align: middle;
+}
+
+.logo {
+  height: 32px;
+  margin-right: 8px;
+  margin-top: -2px;
+}
+
+.loader {
+  position: absolute !important;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: auto !important;
+  height: 42px;
+}
+
+.break-all, .break-all a {
+  word-break: break-all;
+}
+
+.ant-message {
+  word-break: break-all;
+}
+
+.ant-menu .ant-menu-item .react-icons {
+  margin-right: 8px;
+  margin-top: -2px;
+}
+
+.ant-menu .ant-menu-item .react-icons.react-icons-chains {
+  margin-right: 7px;
+}
+
+.ant-menu .ant-menu-item .nav-text {
+  text-transform: uppercase;
+}
+
+.ant-menu .ant-menu-item.menu-no-hover {
+  background: none !important;
+}

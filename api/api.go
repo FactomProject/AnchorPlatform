@@ -39,7 +39,7 @@ func NewAPI(conf *config.Config) *API {
 
 	api := API{conf: conf}
 
-	http.HandleFunc("/", UIHandler)
+	http.Handle("/", http.FileServer(http.Dir("/ui/build")))
 
 	methods := jsonrpc2.MethodMap{
 		"fees":    getFees,
@@ -83,11 +83,8 @@ func getHeights(_ context.Context, _ json.RawMessage) interface{} {
 	btcAnchorHeight := int64(0)
 	ethAnchorHeight := int64(0)
 
-	resp.AnchorHeight = append(resp.AnchorHeight, &LedgerHeight{Ledger: "BTC", Height: btcAnchorHeight}, &LedgerHeight{Ledger: "ETH", Height: ethAnchorHeight})
+	resp.AnchorHeight = append(resp.AnchorHeight, &LedgerHeight{Ledger: "btc", Height: btcAnchorHeight})
+	resp.AnchorHeight = append(resp.AnchorHeight, &LedgerHeight{Ledger: "eth", Height: ethAnchorHeight})
 
 	return resp
-}
-
-func UIHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "UI there\n")
 }
