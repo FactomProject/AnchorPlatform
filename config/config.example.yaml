@@ -5,6 +5,7 @@ factom:
   server: https://api.factomd.net
   user: ""
   password: ""
+  anchorChain: anchors
 ledger:
   btc:
     endpoint: https://bitcoin-node.org
