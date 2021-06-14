@@ -13,7 +13,7 @@ import (
 // Config structure
 type Config struct {
 	HTTPPort int    `default:"8082" json:"httpport" form:"httpport" query:"httpport" required:"true"`
-	DBName   string `default:"db" json:"dbName" form:"dbName" query:"dbName" required:"true"`
+	DBName   string `default:"merkletree.db" json:"dbName" form:"dbName" query:"dbName" required:"true"`
 	Factom   struct {
 		Server    string `default:"" json:"server" form:"server" query:"server" required:"false"`
 		User      string `default:"" json:"user" form:"user" query:"user" required:"false"`
