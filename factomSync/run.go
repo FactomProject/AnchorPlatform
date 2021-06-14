@@ -3,6 +3,7 @@ package factomSync
 import (
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/AccumulateNetwork/SMT/smt"
@@ -13,11 +14,12 @@ import (
 )
 
 type Sync struct {
-	Manager *smt.MerkleManager
-	Stop    bool
+	Manager        *smt.MerkleManager
+	Stop           bool
 	DatabaseHeight int64
-	FactomdHeight int64
-	Start time.Time
+	FactomdHeight  int64
+	Start          time.Time
+	CurrentANOs    map[string]*ANO
 }
 
 // Initialize
@@ -25,28 +27,37 @@ type Sync struct {
 
 func (s *Sync) Init(conf *config.Config) {
 	// Check for custom factomd configuration
-	if conf.Factom.Server != "" {
+	if conf != nil && conf.Factom.Server != "" {
 		fmt.Printf("Factomd server: %s\n", conf.Factom.Server)
 		factom.SetFactomdServer(conf.Factom.Server)
 	} else {
 		fmt.Printf("Factomd server: localhost\n")
 	}
-	if conf.Factom.User != "" && conf.Factom.Password != "" {
+	if conf != nil && conf.Factom.User != "" && conf.Factom.Password != "" {
 		factom.SetFactomdRpcConfig(conf.Factom.User, conf.Factom.Password)
 	}
 
+	// Initialize our Current ANO Map
+	s.CurrentANOs = make(map[string]*ANO)
+
 	// Initialize the database
 	db := new(database.Manager)
-	if err := db.Init("badger",conf.DBName);err!=nil{
-		panic(fmt.Sprint("error configuring the database: ",err))
+	if conf != nil {
+		if err := db.Init("badger", conf.DBName); err != nil {
+			panic(fmt.Sprint("error configuring the database: ", err))
+		}
+	} else {
+		if err := db.Init("memory", ""); err != nil {
+			panic("memory databases should always work")
+		}
 	}
 
-	db.AddBucket("Factom")		// Give ourselves a bucket to keep our stuff in
-	db.AddBucket("Chains")		// Add a bucket to collect the first entries of chains
+	db.AddBucket("Factom") // Give ourselves a bucket to keep our stuff in
+	db.AddBucket("Chains") // Add a bucket to collect the first entries of chains
 
 	// Initialize the MerkleManager
 	s.Manager = new(smt.MerkleManager)
-	s.Manager.Init(db,8)
+	s.Manager.Init(db, 8)
 
 	// Get the database height from the database
 	s.DatabaseHeight = s.GetDatabaseHeight()
@@ -55,11 +66,11 @@ func (s *Sync) Init(conf *config.Config) {
 
 	// On a control-c, we close the database and wait a bit before exiting the program.
 	AddInterruptHandler(func() {
-		s.Stop = true				// Signal to the Run go routine that we are done
+		s.Stop = true                          // Signal to the Run go routine that we are done
 		fmt.Println("Exiting Anchor Platform") // A bit of feedback
-		s.Manager.DBManager.Close() // This is where we close the database.
-		time.Sleep(20 * time.Second) // Give some time for go routines to shut down
-		os.Exit(0) // We are done
+		s.Manager.DBManager.Close()            // This is where we close the database.
+		time.Sleep(20 * time.Second)           // Give some time for go routines to shut down
+		os.Exit(0)                             // We are done
 	})
 
 	s.Start = time.Now()
@@ -70,6 +81,16 @@ func (s *Sync) Init(conf *config.Config) {
 		humanize.Comma(s.DatabaseHeight),
 		humanize.Comma(s.Manager.MS.Count))
 
+}
+
+// GetANOList
+// Get a sorted list of the ANOs
+func (s *Sync) GetANOList() (anoList []*ANO) {
+	for _, v := range s.CurrentANOs {
+		anoList = append(anoList, v)
+	}
+	sort.Slice(anoList, func(i, j int) bool { return anoList[i].ChainID < anoList[j].ChainID })
+	return anoList
 }
 
 // WaitForBlock
@@ -125,8 +146,8 @@ func (s *Sync) Run(conf *config.Config) {
 			// Note that batch can be reused.
 			//
 			// Toward the end (less than 10 blocks to go) then end the batch after every directory block processed.
-			if  s.FactomdHeight-dbheight < 10 {
-				s.SetDatabaseHeight( dbheight)
+			if s.FactomdHeight-dbheight < 10 {
+				s.SetDatabaseHeight(dbheight)
 				s.Manager.DBManager.EndBatch()
 			}
 

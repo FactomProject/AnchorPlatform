@@ -35,6 +35,9 @@ func (s *Sync) AddDirectoryBlock(dbheight int64) (err error) {
 		}
 	}
 
+	s.GetANOList()
+	s.ProcessIdentity(dBlock)
+
 	// Now add all the transactions in the Factoid block to the database
 	if err = s.AddFactoidBlock(dbheight, dBlock); err != nil {
 		return fmt.Errorf("could not add the Factoid Block : %v ", err)
@@ -43,7 +46,6 @@ func (s *Sync) AddDirectoryBlock(dbheight int64) (err error) {
 	return nil
 
 }
-
 
 // AddEntryCreditBlock()
 // Unlike the old anchoring support, the Anchor Platform will allow receipts for commits made to the Factom protocol
@@ -86,7 +88,7 @@ func (s *Sync) AddEntryBlock(keyMR string) (err error) {
 		entryhash, _ := hex.DecodeString(eBlock.EntryList[0].EntryHash)
 		chainID, _ := hex.DecodeString(eBlock.Header.ChainID)
 		// No realistic failure is possible with putting the key value pair into the batch list
-		_ = s.Manager.DBManager.PutBatch("Chains",chainID,entryhash)
+		_ = s.Manager.DBManager.PutBatch("Chains", chainID, entryhash)
 	}
 
 	return nil
