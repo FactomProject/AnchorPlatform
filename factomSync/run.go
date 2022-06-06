@@ -154,7 +154,7 @@ func (s *Sync) Run(conf *config.Config) {
 			// Every so often we are going to give feedback to the user about syncing.  But only if
 			// we are syncing more than 100 blocks.  Otherwise, we just do our job and let the UI provide
 			// feedback.  Always print the first time.
-			if dbheight != 0 && dbheight%5000 == 0 && s.FactomdHeight-dbheight >= 10 {
+			if dbheight != 0 && dbheight%50 == 0 && s.FactomdHeight-dbheight >= 10 {
 				// Figure out how long we have been syncing
 				timeSpent := time.Now().Sub(begin)
 				// Figure out how much of the missing blocks we have processed
