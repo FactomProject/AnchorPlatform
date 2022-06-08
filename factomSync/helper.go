@@ -11,6 +11,7 @@
 package factomSync
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/user"
@@ -138,4 +139,10 @@ func FormatTimeLapseSeconds(total int64) string {
 	} else {
 		return fmt.Sprintf("          %2d s      ", seconds)
 	}
+}
+
+// GetKey
+// Returns the hash of a label + index
+func GetKey(label string, index int64) [32]byte {
+	return sha256.Sum256(append([]byte(label), Int64Bytes(index)...))
 }

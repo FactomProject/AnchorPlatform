@@ -3,10 +3,8 @@ package factomSync
 import (
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
-	"github.com/AccumulateNetwork/SMT/smt"
 	"github.com/AccumulateNetwork/SMT/storage/database"
 	"github.com/FactomProject/AnchorPlatform/config"
 	"github.com/FactomProject/factom"
@@ -14,12 +12,53 @@ import (
 )
 
 type Sync struct {
-	Manager        *smt.MerkleManager
-	Stop           bool
+	// Don't Persist:
+	db            database.Manager      // Our database
+	Stop          bool                  // Flag to stop go routines
+	Start         time.Time             // Time Syncing started in this pass
+	EntryCache    map[string]CacheEntry // Chain cache with list of entries
+	CurrentHeight int64                 // Current Height in the Cache
+
+	// Persist:
 	DatabaseHeight int64
 	FactomdHeight  int64
-	Start          time.Time
-	CurrentANOs    map[string]*ANO
+	EntryCount     int64
+	ChainCount     int64
+
+	// Note:
+	// We can cache all the data we want in memory, then write it to the database every so often.
+	// As long as we only update the Sync to the database after our data is written, we don't have
+	// to worry about updates to the database not reflected by the Sync.DatabaseHeight.  That's
+	// because if the application is halted with some data written, restarting will just write that
+	// same data again.  But no data will be lost.
+}
+
+func (s *Sync) DumpCache() {
+	if s.EntryCache == nil {
+		return
+	}
+	for _, CEntry := range s.EntryCache {
+		s.db.DB.Put(GetKey("Chain", CEntry.Index), CEntry.Marshal())
+	}
+
+}
+
+func (s *Sync) Marshal() (data []byte) {
+	data = append(data, Int64Bytes(s.DatabaseHeight)...)
+	data = append(data, Int64Bytes(s.FactomdHeight)...)
+	data = append(data, Int64Bytes(s.EntryCount)...)
+	data = append(data, Int64Bytes(s.ChainCount)...)
+	return data
+}
+
+func (s *Sync) UnMarshal(data []byte) {
+	s.DatabaseHeight = int64(data[0])<<24 + int64(data[1])<<16 + int64(data[2])<<8 + int64(data[3])
+	s.FactomdHeight = int64(data[0])<<24 + int64(data[1])<<16 + int64(data[2])<<8 + int64(data[3])
+	s.EntryCount = int64(data[0])<<24 + int64(data[1])<<16 + int64(data[2])<<8 + int64(data[3])
+	s.ChainCount = int64(data[0])<<24 + int64(data[1])<<16 + int64(data[2])<<8 + int64(data[3])
+	if s.EntryCache == nil {
+		s.EntryCache = make(map[string]CacheEntry)
+	}
 }
 
 // Initialize
@@ -33,12 +72,10 @@ func (s *Sync) Init(conf *config.Config) {
 	} else {
 		fmt.Printf("Factomd server: localhost\n")
 	}
+
 	if conf != nil && conf.Factom.User != "" && conf.Factom.Password != "" {
 		factom.SetFactomdRpcConfig(conf.Factom.User, conf.Factom.Password)
 	}
-
-	// Initialize our Current ANO Map
-	s.CurrentANOs = make(map[string]*ANO)
 
 	// Initialize the database
 	db := new(database.Manager)
@@ -55,10 +92,6 @@ func (s *Sync) Init(conf *config.Config) {
 	db.AddBucket("Factom") // Give ourselves a bucket to keep our stuff in
 	db.AddBucket("Chains") // Add a bucket to collect the first entries of chains
 
-	// Initialize the MerkleManager
-	s.Manager = new(smt.MerkleManager)
-	s.Manager.Init(db, 8)
-
 	// Get the database height from the database
 	s.DatabaseHeight = s.GetDatabaseHeight()
 	// Get the initial s.FactomdHeight
@@ -68,7 +101,7 @@ func (s *Sync) Init(conf *config.Config) {
 	AddInterruptHandler(func() {
 		s.Stop = true                          // Signal to the Run go routine that we are done
 		fmt.Println("Exiting Anchor Platform") // A bit of feedback
-		s.Manager.DBManager.Close()            // This is where we close the database.
+		db.Close()                             // This is where we close the database.
 		time.Sleep(20 * time.Second)           // Give some time for go routines to shut down
 		os.Exit(0)                             // We are done
 	})
@@ -77,21 +110,12 @@ func (s *Sync) Init(conf *config.Config) {
 
 	// Update the user where we are right from the start, since the next feedback won't
 	// be until there is a new block, if we are already synced with factomd.
-	fmt.Printf("Starting the Anchor Platform at Height: %s  with %s Objects\n",
-		humanize.Comma(s.DatabaseHeight),
-		humanize.Comma(s.Manager.MS.Count))
+//	fmt.Printf("Starting the Anchor Platform at Height: %s  with %s Objects\n",
+//		humanize.Comma(s.DatabaseHeight),
+//		humanize.Comma(s.Manager.MS.Count))
 
 }
 
-// GetANOList
-// Get a sorted list of the ANOs
-func (s *Sync) GetANOList() (anoList []*ANO) {
-	for _, v := range s.CurrentANOs {
-		anoList = append(anoList, v)
-	}
-	sort.Slice(anoList, func(i, j int) bool { return anoList[i].ChainID < anoList[j].ChainID })
-	return anoList
-}
 
 // WaitForBlock
 // Wait for factomd to produce a new block.  When a new block is found, then return.  WaitForBlock
@@ -121,9 +145,10 @@ func (s *Sync) Run(conf *config.Config) {
 
 	for !s.Stop { // Continue processing as long as Stop isn't set (set by an interrupt of the program)
 		// Update the user where we are
-		fmt.Printf("Height: %s  Objects: %s  Running time: %s\n",
+		fmt.Printf("Height: %s  Entries: %s Chains: %s Running time: %s\n",
 			humanize.Comma(s.DatabaseHeight),
-			humanize.Comma(s.Manager.MS.Count),
+			humanize.Comma(s.EntryCount),
+			humanize.Comma(s.ChainCount),
 			FormatTimeLapse(time.Now().Sub(s.Start)))
 		// To estimate how long this is taking and how long it will take, we need the time we started,
 		// and the s.DatabaseHeight we started at.
@@ -148,7 +173,6 @@ func (s *Sync) Run(conf *config.Config) {
 			// Toward the end (less than 10 blocks to go) then end the batch after every directory block processed.
 			if s.FactomdHeight-dbheight < 10 {
 				s.SetDatabaseHeight(dbheight)
-				s.Manager.DBManager.EndBatch()
 			}
 
 			// Every so often we are going to give feedback to the user about syncing.  But only if
@@ -164,10 +188,11 @@ func (s *Sync) Run(conf *config.Config) {
 				timeLeft := int64(float64(s.FactomdHeight-dbheight) * timePerBlock)
 				// fmt.Printf("Time per block %6.4f and blocks left %d of %d\n", timePerBlock, s.FactomdHeight-dbheight, s.FactomdHeight)
 				// Print our feedback
-				fmt.Printf("%s Height: %10s  Objects: %13s  Done: %02.0f%%  Left: %s  ~total: %s\n",
+				fmt.Printf("%s Height: %10s  Entries: %13s Chains %13s Done: %04.0f%%  Left: %s  ~total: %s\n",
 					FormatTimeLapse(timeSpent),
 					humanize.Comma(dbheight),
-					humanize.Comma(s.Manager.MS.Count),
+					humanize.Comma(s.EntryCount),
+					humanize.Comma(s.ChainCount),
 					percentDone*100,
 					FormatTimeLapseSeconds(timeLeft),
 					FormatTimeLapseSeconds(timeLeft+int64(timeSpent.Seconds())),

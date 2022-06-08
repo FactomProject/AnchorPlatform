@@ -11,5 +11,5 @@ func main() {
 	apiInstance := api.NewAPI(conf)
 	sync := new(factomSync.Sync)
 	go sync.Run(conf)
-	_=apiInstance.Start()
+	_ = apiInstance.Start()
 }
